@@ -1,0 +1,3 @@
+﻿  STL案例-评委打分.cpp
+D:\Users\zcw\source\repos\STL案例-评委打分\STL案例-评委打分.cpp(62,27): warning C4267: “初始化”: 从“size_t”转换到“int”，可能丢失数据
+  STL案例-评委打分.vcxproj -> D:\Users\zcw\source\repos\STL案例-评委打分\x64\Debug\STL案例-评委打分.exe
