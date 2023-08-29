@@ -1,0 +1,4 @@
+﻿  三子棋.c
+D:\Code\c_code\test\game1\三子棋.c(53,2): warning C4013: “srand”未定义；假设外部返回 int
+D:\Code\c_code\test\game1\三子棋.c(57,3): warning C4013: “system”未定义；假设外部返回 int
+  game1.vcxproj -> D:\Code\c_code\test\game1\x64\Debug\game1.exe
