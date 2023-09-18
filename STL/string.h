@@ -88,6 +88,11 @@ namespace Z
             return m_size;
         }
 
+        size_t capacity()
+        {
+            return m_capacity;
+        }
+
         bool operator>(const string& s)const
         {
             return strcmp(m_str , s.m_str) > 0;
@@ -115,9 +120,26 @@ namespace Z
 
         void resize(size_t n , char ch = '\0')
         {
+            if(n < m_size)
+            {
+                m_size = n;
+                m_str[m_size] = '\0';
+            }
+            else if(n > m_size)
+            {
+                if(n >m_capacity)
+                {
+                    reserve(n);
+                }
 
+                while(m_size < n)
+                {
+                    m_str[m_size] = ch;
+                    m_size++;
+                }
+                m_str[m_size] = '\0';
+            }
         }
-
         void reserve(size_t n)
         {
             char* temp = new char[n + 1];
@@ -161,6 +183,106 @@ namespace Z
             push_back(ch);
             return *this;
         }
+
+        string& insert(size_t pos , char ch)
+        {
+            assert(pos <= m_size);
+
+            if(m_size == m_capacity)
+            {
+                reserve(m_capacity * 2);
+            }
+
+            size_t end = m_size + 1;
+            while(end > pos)
+            {
+                m_str[end] = m_str[end - 1];
+                end--;
+            }
+            m_str[pos] = ch;
+            m_size++;
+
+            return *this;
+        }
+
+        string& insert(size_t pos , const char* str)
+        {
+            assert(pos <= m_size);
+
+            size_t len = strlen(str);
+            if(m_size + len > m_capacity)
+            {
+                reserve(m_size + len);
+            }
+
+            size_t end = m_size + len;
+            while(end > pos + len - 1)
+            {
+                m_str[end] = m_str[end - len];
+                end--;
+            }
+            strncpy(m_str + pos , str , len);
+            m_size += len;
+
+            return *this;
+        }
+
+        string& erase(size_t pos , size_t len = npos)
+        {
+            assert(pos <= m_size);
+
+            if(len == npos || len >= m_size - pos)
+            {
+                m_str[pos] = '\0';
+                m_size = pos;
+            }
+            else
+            {
+                strcpy(m_str + pos , m_str + pos + len);
+                m_size -= len;
+            }
+
+            return *this;
+        }
+
+        void swap(string& s)
+        {
+            std::swap(m_str , s.m_str);
+            std::swap(m_size , s.m_size);
+            std::swap(m_capacity , s.m_capacity);
+        }
+
+        size_t find(char ch , size_t pos = 0)
+        {
+            assert(pos < m_size);
+
+            for(size_t i = pos; i < m_size; i++)
+            {
+                if(m_str[i] == ch)
+                    return i;
+            }
+
+            return npos;
+        }
+
+        size_t find(const char* str , size_t pos = 0)
+        {
+            assert(pos < m_size);
+
+            char* ptr = strstr(m_str + pos , str);
+            if(str == nullptr)
+            {
+                return npos;
+            }
+            return ptr - m_str;
+        }
+
+        void clear()
+        {
+            m_str[0] = '\0';
+            m_size = 0;
+        }
+
     private:
         char* m_str;
         size_t m_capacity;
@@ -168,4 +290,46 @@ namespace Z
 
         static const size_t npos = -1;
     };
+
+    std::ostream& operator<<(std::ostream& out , const string& s)
+    {
+        for(auto ch : s)
+        {
+            out << ch;
+        }
+
+        return out;
+    }
+
+    std::istream& operator>>(std::istream& in , string& s)
+    {
+        s.clear();
+
+        char ch = in.get();
+        char str[128];
+        int i = 0;
+
+        while(ch != ' ' && ch != '\n')
+        {
+            str[i++] = ch;
+
+            if(i == 127)
+            {
+                str[i] = '\0';
+                s += str;
+                i = 0;
+            }
+            ch = in.get();
+        }
+
+        if(i != 0)
+        {
+            str[i] = '\0';
+            s += str;
+        }
+
+        return in;
+    }
 }
+
+

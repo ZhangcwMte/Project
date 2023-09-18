@@ -1,5 +1,5 @@
-string:string.h string.cpp main.cpp
-	g++ -o $@ $^
+string:string.h main.cpp
+	g++ -std=c++11 -o $@ $^
 
 .PHONY:clean
 clean:
