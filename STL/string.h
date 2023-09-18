@@ -1,8 +1,6 @@
 #include<iostream>
 #include<string.h>
 #include<assert.h>
-using std::cout;
-using std::endl;
 
 namespace Z
 {
