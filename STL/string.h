@@ -140,12 +140,15 @@ namespace Z
         }
         void reserve(size_t n)
         {
+            if(n > m_capacity)
+            {
             char* temp = new char[n + 1];
             strcpy(temp , m_str);
             delete[] m_str;
             m_str = temp;
 
             m_capacity = n;
+            }
         }
         
         void push_back(char ch)
@@ -206,7 +209,6 @@ namespace Z
         string& insert(size_t pos , const char* str)
         {
             assert(pos <= m_size);
-
             size_t len = strlen(str);
             if(m_size + len > m_capacity)
             {
