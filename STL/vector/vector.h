@@ -45,12 +45,11 @@ namespace Z
 
         vector(const vector<T>& v)
         {
-            reserve(v.capacity());
+            m_start = m_finish = new T[v.capacity()];
             for(int i = 0; i < v.size(); i++)
             {
-                *(m_start + i) = *(v.m_start + i);
+                *(m_finish++) = *(v.m_start + i);
             }
-            m_finish = m_start + v.size();
             m_end_of_storage = m_start + v.capacity();
         }
 
@@ -120,11 +119,12 @@ namespace Z
 
         vector<T>& operator=(const vector<T>& v)
         {
-            m_start = m_finish = new T[v.capacity()];
+            reserve(v.capacity());
             for(int i = 0; i < v.size(); i++)
             {
-                *(m_finish++) = *(v.m_start + i);
+                *(m_start + i) = *(v.m_start + i);
             }
+            m_finish = m_start + v.size();
             m_end_of_storage = m_start + v.capacity();
 
             return *this;
@@ -156,6 +156,13 @@ namespace Z
             assert(!empty());
 
             m_finish--;
+        }
+
+        void swap(vector<T>& v)
+        {
+            std::swap(m_start , v.m_start);
+            std::swap(m_finish , v.m_finish);
+            std::swap(m_end_of_storage , v.m_end_of_storage);
         }
 
         iterator insert(iterator pos , const T& val)
