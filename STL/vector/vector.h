@@ -144,6 +144,16 @@ namespace Z
             return *(m_start + n);
         }
 
+        const T& front()const
+        {
+            return *m_start;
+        }
+
+        const T& back()const
+        {
+            return *(m_finish - 1);
+        }
+
         void push_back(const T& val)
         {
             if(size() == capacity())
