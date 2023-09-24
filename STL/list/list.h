@@ -154,6 +154,16 @@ namespace Z
             return *this;
         }
 
+        const T& front()const
+        {
+            return m_head->m_next->m_data;
+        }
+
+        const T& back()const 
+        {
+            return m_head->m_prev->m_data;
+        }
+
         void push_back(const T& val)
         {
             insert(end() , val);
