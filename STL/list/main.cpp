@@ -1,3 +1,5 @@
+#include<iostream>
+
 #include"list.h"
 using namespace Z;
 
@@ -15,6 +17,9 @@ int main()
         std::cout << i << " ";
     }
     std::cout << std::endl;
+
+    list<int>::const_reverse_iterator it = lt.begin();
+    std::cout << *it << std::endl;
 
     return 0;
 }

@@ -1,7 +1,6 @@
 #pragma once 
-#include<iostream>
 #include<assert.h>
-
+#include"../reverse_iterator/reverse_iterator.h"
 namespace Z
 {
     template<class T>
@@ -89,6 +88,9 @@ namespace Z
         typedef __list_iterator<T , T& , T*> iterator;
         typedef __list_iterator<T , const T& , const T*> const_iterator;
 
+        typedef _reverse_iterator<iterator, T&, T*> reverse_iterator;
+		typedef _reverse_iterator<iterator, const T&, const T*> const_reverse_iterator;
+
         void empty_init()
         {
             m_head = new node;
@@ -140,6 +142,26 @@ namespace Z
         const_iterator end()const 
         {
             return m_head;
+        }
+
+        reverse_iterator rbegin()
+        {
+            return reverse_iterator(end());
+        }
+
+        reverse_iterator rend()
+        {
+            return reverse_iterator(begin());
+        }
+
+        const_reverse_iterator rbegin()const 
+        {
+            return const_reverse_iterator(end());
+        }
+
+        const_reverse_iterator rend()const 
+        {
+            return const_reverse_iterator(begin());
         }
 
         void swap(list<T>& lt)
