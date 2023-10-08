@@ -2,20 +2,20 @@
 
 namespace Z
 {
-    template<class iterator , class Ref , class Ptr>
-    struct reverse_iterator
+    template<class iterator, class Ref, class Ptr>
+    struct _reverse_iterator
     {
-        typedef reverse_iterator<iterator , Ref , Ptr> Self;
+        typedef _reverse_iterator<iterator, Ref, Ptr> Self;
 
-        reverse_iterator(iterator it)
+        _reverse_iterator(iterator it)
             :m_cur(it)
-        {
-            ;
-        }
+        {}
 
         Ref operator*()
         {
-            return *(m_cur - 1);
+            iterator temp = m_cur;
+            --temp;
+            return *temp;
         }
 
         Self& operator++()
