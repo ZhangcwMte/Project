@@ -1,6 +1,6 @@
 #pragma once
-#include<iostream>
 #include<assert.h>
+#include"../reverse_iterator/reverse_iterator.h"
 
 namespace Z
 {
@@ -10,6 +10,9 @@ namespace Z
     public:
         typedef T* iterator;
         typedef const T* const_iterator;
+
+        typedef _reverse_iterator<iterator , T& , T*> reverse_iterator;
+        typedef _reverse_iterator<iterator , const T& , const T*> const_reverse_iterator;
 
         vector()
         {
