@@ -1,5 +1,4 @@
 #pragma once
-#include<iostream>
 #include<string.h>
 #include<assert.h>
 
@@ -82,7 +81,7 @@ namespace Z
             return m_str[pos];
         }
 
-        size_t size()
+        size_t size()const
         {
             return m_size;
         }
