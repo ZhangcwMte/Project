@@ -15,6 +15,12 @@ namespace Z
              m_next(nullptr),
              m_data(val)
         {}
+
+        list_node(T&& val = T())
+            :m_prev(nullptr),
+            m_next(nullptr),
+            m_data(std::forward<T>(val))
+        {}
     };
 
     template<class T , class Ref , class Ptr>
@@ -93,7 +99,7 @@ namespace Z
 
         void empty_init()
         {
-            m_head = new node;
+            m_head = new node(T());
             m_head->m_prev = m_head;
             m_head->m_next = m_head;
         }
@@ -191,9 +197,19 @@ namespace Z
             insert(end() , val);
         }
 
+        void push_back(T&& val)
+        {
+            insert(end(), std::forward<T>(val));
+        }
+
         void push_front(const T& val)
         {
             insert(begin() , val);
+        }
+
+        void push_front(T&& val)
+        {
+            insert(begin(), std::forward<T>(val));
         }
 
         void pop_back()
@@ -212,6 +228,19 @@ namespace Z
             node* next = pos.m_node;
 
             node* new_node = new node(val);
+
+            new_node->m_prev = prev;
+            new_node->m_next = next;
+            prev->m_next = new_node;
+            next->m_prev = new_node;
+        }
+
+        void insert(const iterator& pos, T&& val)
+        {
+            node* prev = pos.m_node->m_prev;
+            node* next = pos.m_node;
+
+            node* new_node = new node(std::forward<T>(val));
 
             new_node->m_prev = prev;
             new_node->m_next = next;
