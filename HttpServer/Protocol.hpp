@@ -5,10 +5,18 @@
 #include <unordered_map>
 #include <sstream>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <algorithm>
 
 #include"Util.hpp"
 
 const std::string SEP = ": ";
+
+const std::string WEB_ROOT = "wwwroot";
+const std::string HOME_PAGE = "index.html";
+
+const int OK = 200;
+const int NOT_FOUND = 404;
 
 struct HttpRequest
 {
@@ -23,14 +31,20 @@ struct HttpRequest
 
     std::unordered_map<std::string, std::string> _header_kv;
     size_t _content_length = 0;
+
+    std::string _path;
+    std::string _query_string;
+    bool _cgi;
 };
 
-class HttpResponse
+struct HttpResponse
 {
     std::string _response_line;
     std::vector<std::string> _response_header;
     std::string _blank;
     std::string _response_body;
+
+    int _status_code = OK;
 };
 
 //读取请求，分析请求，构建响应，IO
@@ -98,6 +112,8 @@ private:
         auto& line = _http_request._request_line;
         std::stringstream ss(line);
         ss >> _http_request._method >> _http_request._uri >> _http_request._version;
+        auto& method = _http_request._method;
+        std::transform(method.begin(), method.end(), method.begin(), ::toupper);
     }
 
     void parseHttpRequestHeader()
@@ -110,6 +126,9 @@ private:
                 _http_request._header_kv.insert({key, value});
         }
     }
+
+    void processNonCgi()
+    {}
 public:
     EndPoint(int sock)
         :_sock(sock)
@@ -130,7 +149,76 @@ public:
     // }
 
     void buildHttpResponse()
-    {}
+    {
+        std::string path;
+        auto& code = _http_reaponse._status_code;
+        if(_http_request._method != "GET" && _http_request._method != "POST")
+        {
+            logMessage(WARNING, "method is not right");
+            code = NOT_FOUND;
+            goto END;
+        }
+        if(_http_request._method == "GET")
+        {
+            ssize_t pos = _http_request._uri.find('?');
+            if(pos != std::string::npos)
+            {
+                Util::cutString(_http_request._uri, _http_request._path, _http_request._query_string, "?");
+                _http_request._cgi = true;
+            }
+            else
+            {
+                _http_request._path = _http_request._uri;
+            }
+            path = _http_request._path;
+            _http_request._path = WEB_ROOT;
+            _http_request._path += path;
+            if(_http_request._path[_http_request._path.size() - 1] == '/')
+            {
+                _http_request._path += HOME_PAGE;
+            }
+            struct stat st;
+            if(stat(_http_request._path.c_str(), &st) == 0)
+            {
+                if(S_ISDIR(st.st_mode))
+                {
+                    _http_request._path += '/';
+                    _http_request._path += HOME_PAGE;
+                }
+                if((st.st_mode&S_IXUSR) || (st.st_mode&S_IXGRP) || (st.st_mode&S_IXOTH))
+                {
+                    //可执行
+                    _http_request._cgi = true;
+                }
+            }
+            else
+            {
+                std::string info = _http_request._path;
+                info += " Not Found";
+                logMessage(WARNING, info.c_str());
+                code = NOT_FOUND;
+                goto END;
+            }
+        }
+        else if(_http_request._method == "POST")
+        {
+            _http_request._cgi = true;
+        }
+        else{
+            //nothing
+        }
+
+        if(_http_request._cgi == true)
+        {
+            //processCgi();
+        }
+        else
+        {
+            processNonCgi();
+        }
+    END:
+        return;
+    }
 
     void sendHttpResponse()
     {}
