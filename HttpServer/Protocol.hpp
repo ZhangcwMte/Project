@@ -6,17 +6,55 @@
 #include <sstream>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <sys/sendfile.h>
 #include <algorithm>
 
 #include"Util.hpp"
 
 const std::string SEP = ": ";
-
 const std::string WEB_ROOT = "wwwroot";
 const std::string HOME_PAGE = "index.html";
+const std::string HTTP_VERSION = "HTTP/1.0";
+const std::string LINE_END = "\r\n";
 
 const int OK = 200;
 const int NOT_FOUND = 404;
+
+static std::string Code2Desc(int code)
+{
+    std::string desc;
+    switch(code)
+    {
+        case 200:
+            desc = "OK";
+            break;
+        case 404:
+            desc = "Not Found";
+            break;
+        default:
+            break;
+    }
+    return desc;
+}
+
+static std::string Suffix2Desc(const std::string& suffix)
+{
+    static std::unordered_map<std::string, std::string> suffix2desc = {
+        {".html", "text/html"},
+        {".css", "text/css"},
+        {".js", "application/javascript"},
+        {".jpg", "application/x-jpg"},
+        {".xml", "application/xml"}
+    };
+
+    auto iter = suffix2desc.find(suffix);
+    if(iter != suffix2desc.end())
+    {
+        return iter->second;
+    }
+    return "text/html";
+}
 
 struct HttpRequest
 {
@@ -33,18 +71,21 @@ struct HttpRequest
     size_t _content_length = 0;
 
     std::string _path;
+    std::string suffix;
     std::string _query_string;
     bool _cgi;
 };
 
 struct HttpResponse
 {
-    std::string _response_line;
+    std::string _status_line;
     std::vector<std::string> _response_header;
-    std::string _blank;
+    std::string _blank = LINE_END;
     std::string _response_body;
 
     int _status_code = OK;
+    int _fd = -1;
+    size_t _size;
 };
 
 //读取请求，分析请求，构建响应，IO
@@ -127,8 +168,37 @@ private:
         }
     }
 
-    void processNonCgi()
-    {}
+    int processNonCgi(size_t size)
+    {
+        _http_reaponse._fd = open(_http_request._path.c_str(), O_RDONLY);
+        if(_http_reaponse._fd >= 0)
+        {
+        //状态行
+        _http_reaponse._status_line = HTTP_VERSION;
+        _http_reaponse._status_line += " ";
+        _http_reaponse._status_line += std::to_string(_http_reaponse._status_code);
+        _http_reaponse._status_line += " ";
+        _http_reaponse._status_line += Code2Desc(_http_reaponse._status_code);
+        _http_reaponse._status_line += LINE_END;
+        _http_reaponse._size = size;
+        //响应报头
+        std::string header_line = "Content-Length: ";
+        header_line += std::to_string(size);
+        header_line += LINE_END;
+        _http_reaponse._response_header.push_back(header_line);
+
+        header_line = "Content-Type: ";
+        header_line += Suffix2Desc(_http_request.suffix);
+        header_line += LINE_END;
+        _http_reaponse._response_header.push_back(header_line);
+        //内容
+
+
+        return OK;
+        }
+
+        return 404;
+    }
 public:
     EndPoint(int sock)
         :_sock(sock)
@@ -151,6 +221,9 @@ public:
     void buildHttpResponse()
     {
         std::string path;
+        struct stat st;
+        size_t found = 0;
+        size_t size = 0;
         auto& code = _http_reaponse._status_code;
         if(_http_request._method != "GET" && _http_request._method != "POST")
         {
@@ -170,35 +243,6 @@ public:
             {
                 _http_request._path = _http_request._uri;
             }
-            path = _http_request._path;
-            _http_request._path = WEB_ROOT;
-            _http_request._path += path;
-            if(_http_request._path[_http_request._path.size() - 1] == '/')
-            {
-                _http_request._path += HOME_PAGE;
-            }
-            struct stat st;
-            if(stat(_http_request._path.c_str(), &st) == 0)
-            {
-                if(S_ISDIR(st.st_mode))
-                {
-                    _http_request._path += '/';
-                    _http_request._path += HOME_PAGE;
-                }
-                if((st.st_mode&S_IXUSR) || (st.st_mode&S_IXGRP) || (st.st_mode&S_IXOTH))
-                {
-                    //可执行
-                    _http_request._cgi = true;
-                }
-            }
-            else
-            {
-                std::string info = _http_request._path;
-                info += " Not Found";
-                logMessage(WARNING, info.c_str());
-                code = NOT_FOUND;
-                goto END;
-            }
         }
         else if(_http_request._method == "POST")
         {
@@ -208,20 +252,72 @@ public:
             //nothing
         }
 
-        if(_http_request._cgi == true)
+        path = _http_request._path;
+        _http_request._path = WEB_ROOT;
+        _http_request._path += path;
+        if(_http_request._path[_http_request._path.size() - 1] == '/')
+        {
+            _http_request._path += HOME_PAGE;
+        }
+        if(stat(_http_request._path.c_str(), &st) == 0)
+        {
+            if(S_ISDIR(st.st_mode))
+            {
+                _http_request._path += '/';
+                _http_request._path += HOME_PAGE;
+                stat(_http_request._path.c_str(), &st);
+            }
+            if((st.st_mode&S_IXUSR) || (st.st_mode&S_IXGRP) || (st.st_mode&S_IXOTH))
+            {
+                //可执行
+                _http_request._cgi = true;
+            }
+            size = st.st_size;
+        }
+        else
+        {
+            std::string info = _http_request._path;
+            info += " Not Found";
+            logMessage(WARNING, info.c_str());
+            code = NOT_FOUND;
+            goto END;
+        }    
+
+        found = _http_request._path.rfind(".");
+        if(found == std::string::npos)
+        {
+            _http_request.suffix = ".html";
+        }
+        else
+        {
+            _http_request.suffix = _http_request._path.substr(found);
+        }
+
+        if(_http_request._cgi)
         {
             //processCgi();
         }
         else
         {
-            processNonCgi();
+            code = processNonCgi(size);
         }
     END:
+        if(code != OK)
+        {}
         return;
     }
 
     void sendHttpResponse()
-    {}
+    {
+        send(_sock, _http_reaponse._status_line.c_str(), _http_reaponse._status_line.size(), 0);
+        for(auto& iter: _http_reaponse._response_header)
+        {
+            send(_sock, iter.c_str(), iter.size(), 0);
+        }
+        send(_sock, _http_reaponse._blank.c_str(), _http_reaponse._blank.size(), 0);
+        sendfile(_sock, _http_reaponse._fd, nullptr, _http_reaponse._size);
+        close(_http_reaponse._fd);
+    }
 
     ~EndPoint()
     {
