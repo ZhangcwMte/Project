@@ -6,6 +6,7 @@
 #include <sstream>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <sys/sendfile.h>
 #include <algorithm>
@@ -166,6 +167,83 @@ private:
             if(Util::cutString(iter, key, value, SEP))
                 _http_request._header_kv.insert({key, value});
         }
+    }
+
+    int processCgi()
+    {
+        auto& method = _http_request._method;
+        auto& query_string = _http_request._query_string;
+        auto& body_text = _http_request._request_body;
+        auto& bin = _http_request._path;
+
+        std::string query_string_env;
+        std::string method_env;
+
+        int input[2];
+        int output[2];
+
+        if(pipe(input) < 0)
+        {
+            logMessage(ERROR, "pipe input error!");
+            return 404;
+        }
+        if(pipe(output) < 0)
+        {
+            logMessage(ERROR, "pipe output error!");
+            return 404;
+        }
+
+        pid_t pid = fork();
+        if(pid == 0)
+        {
+            close(input[0]);
+            close(output[1]);
+
+            dup2(input[1], 1);
+            dup2(output[0], 0);
+
+            method_env = "METHOD=";
+            method_env += method;
+            putenv((char*)method_env.c_str());
+
+            if(method == "GET")
+            {
+                query_string_env = "QUERY_STRING=";
+                query_string_env += query_string;
+                putenv((char*)query_string_env.c_str());
+            }
+
+            execl(bin.c_str(), bin.c_str(), nullptr);
+            exit(1);
+        }
+        else if(pid < 0)
+        {
+            logMessage(ERROR, "fork error!");
+            return 404;
+        }
+        else
+        {
+            close(input[1]);
+            close(output[0]);
+
+            if(method == "POST")
+            {
+                const char* start = body_text.c_str();
+                int total = 0;
+                size_t size = 0;
+                while(size = write(output[1], start + total, body_text.size() - total))
+                {
+                        total += size;
+                }
+
+            }
+
+            waitpid(pid, nullptr, 0);
+
+            close(input[0]);
+            close(output[1]);
+        }
+        return OK;
     }
 
     int processNonCgi(size_t size)
