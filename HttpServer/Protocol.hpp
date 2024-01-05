@@ -171,13 +171,17 @@ private:
 
     int processCgi()
     {
+        int code = OK;
         auto& method = _http_request._method;
         auto& query_string = _http_request._query_string;
         auto& body_text = _http_request._request_body;
         auto& bin = _http_request._path;
+        int content_length = _http_request._content_length;
+        auto& response_body = _http_reaponse._response_body;
 
         std::string query_string_env;
         std::string method_env;
+        std::string content_length_env;
 
         int input[2];
         int output[2];
@@ -185,12 +189,14 @@ private:
         if(pipe(input) < 0)
         {
             logMessage(ERROR, "pipe input error!");
-            return 404;
+            code = 404;
+            return code;
         }
         if(pipe(output) < 0)
         {
             logMessage(ERROR, "pipe output error!");
-            return 404;
+            code = 404;
+            return code;
         }
 
         pid_t pid = fork();
@@ -198,9 +204,6 @@ private:
         {
             close(input[0]);
             close(output[1]);
-
-            dup2(input[1], 1);
-            dup2(output[0], 0);
 
             method_env = "METHOD=";
             method_env += method;
@@ -212,6 +215,19 @@ private:
                 query_string_env += query_string;
                 putenv((char*)query_string_env.c_str());
             }
+            else if(method == "POST")
+            {
+                content_length_env = "CONTENT_LENGTH=";
+                content_length_env += std::to_string(content_length);
+                putenv((char*)content_length_env.c_str());
+            }
+            else
+            {
+                //nothing
+            }
+
+            dup2(input[1], 1);
+            dup2(output[0], 0);
 
             execl(bin.c_str(), bin.c_str(), nullptr);
             exit(1);
@@ -231,19 +247,37 @@ private:
                 const char* start = body_text.c_str();
                 int total = 0;
                 size_t size = 0;
-                while(size = write(output[1], start + total, body_text.size() - total))
+                while(total < content_length && (size = write(output[1], start + total, body_text.size() - total)) > 0)
                 {
                         total += size;
                 }
-
             }
 
-            waitpid(pid, nullptr, 0);
+            char ch = 0;
+            while(read(input[0], &ch, 1))
+            {
+                response_body.push_back(ch);
+            }
+
+            int status = 0;
+            int ret = waitpid(pid, &status, 0);
+            if(ret == pid)
+            {
+                if(WIFEXITED(status))
+                {
+                    if(WEXITSTATUS(status) == 0)
+                        code = OK;
+                    else
+                        code = 404;
+                }
+                else
+                    code = 404;
+            }
 
             close(input[0]);
             close(output[1]);
         }
-        return OK;
+        return code;
     }
 
     int processNonCgi(size_t size)
@@ -325,6 +359,7 @@ public:
         else if(_http_request._method == "POST")
         {
             _http_request._cgi = true;
+            _http_request._path = _http_request._uri;
         }
         else{
             //nothing
@@ -373,7 +408,7 @@ public:
 
         if(_http_request._cgi)
         {
-            //processCgi();
+            code = processCgi();
         }
         else
         {
