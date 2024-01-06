@@ -16,11 +16,16 @@
 const std::string SEP = ": ";
 const std::string WEB_ROOT = "wwwroot";
 const std::string HOME_PAGE = "index.html";
+const std::string PAGE_400 = "400.html";
+const std::string PAGE_404 = "404.html";
+const std::string PAGE_500 = "500.html";
 const std::string HTTP_VERSION = "HTTP/1.0";
 const std::string LINE_END = "\r\n";
 
 const int OK = 200;
+const int BAD_REQUEST = 400;
 const int NOT_FOUND = 404;
+const int SERVER_ERROR = 500;
 
 static std::string Code2Desc(int code)
 {
@@ -74,6 +79,7 @@ struct HttpRequest
     std::string _path;
     std::string suffix;
     std::string _query_string;
+    size_t _size;
     bool _cgi;
 };
 
@@ -86,7 +92,6 @@ struct HttpResponse
 
     int _status_code = OK;
     int _fd = -1;
-    size_t _size;
 };
 
 //读取请求，分析请求，构建响应，IO
@@ -189,13 +194,13 @@ private:
         if(pipe(input) < 0)
         {
             logMessage(ERROR, "pipe input error!");
-            code = 404;
+            code = SERVER_ERROR;
             return code;
         }
         if(pipe(output) < 0)
         {
             logMessage(ERROR, "pipe output error!");
-            code = 404;
+            code = SERVER_ERROR;
             return code;
         }
 
@@ -235,7 +240,7 @@ private:
         else if(pid < 0)
         {
             logMessage(ERROR, "fork error!");
-            return 404;
+            return SERVER_ERROR;
         }
         else
         {
@@ -245,7 +250,7 @@ private:
             if(method == "POST")
             {
                 const char* start = body_text.c_str();
-                int total = 0;
+                size_t total = 0;
                 size_t size = 0;
                 while(total < content_length && (size = write(output[1], start + total, body_text.size() - total)) > 0)
                 {
@@ -268,10 +273,10 @@ private:
                     if(WEXITSTATUS(status) == 0)
                         code = OK;
                     else
-                        code = 404;
+                        code = BAD_REQUEST;
                 }
                 else
-                    code = 404;
+                    code = SERVER_ERROR;
             }
 
             close(input[0]);
@@ -280,36 +285,109 @@ private:
         return code;
     }
 
-    int processNonCgi(size_t size)
+    int processNonCgi()
     {
         _http_reaponse._fd = open(_http_request._path.c_str(), O_RDONLY);
         if(_http_reaponse._fd >= 0)
         {
         //状态行
-        _http_reaponse._status_line = HTTP_VERSION;
-        _http_reaponse._status_line += " ";
-        _http_reaponse._status_line += std::to_string(_http_reaponse._status_code);
-        _http_reaponse._status_line += " ";
-        _http_reaponse._status_line += Code2Desc(_http_reaponse._status_code);
-        _http_reaponse._status_line += LINE_END;
-        _http_reaponse._size = size;
-        //响应报头
-        std::string header_line = "Content-Length: ";
-        header_line += std::to_string(size);
-        header_line += LINE_END;
-        _http_reaponse._response_header.push_back(header_line);
+        // _http_reaponse._status_line = HTTP_VERSION;
+        // _http_reaponse._status_line += " ";
+        // _http_reaponse._status_line += std::to_string(_http_reaponse._status_code);
+        // _http_reaponse._status_line += " ";
+        // _http_reaponse._status_line += Code2Desc(_http_reaponse._status_code);
+        // _http_reaponse._status_line += LINE_END;
+        // _http_reaponse._size = _http_reaponse._size;
+        // //响应报头
+        // std::string header_line = "Content-Length: ";
+        // header_line += std::to_string(_http_reaponse._size);
+        // header_line += LINE_END; 
+        // _http_reaponse._response_header.push_back(header_line);
 
-        header_line = "Content-Type: ";
-        header_line += Suffix2Desc(_http_request.suffix);
-        header_line += LINE_END;
-        _http_reaponse._response_header.push_back(header_line);
+        // header_line = "Content-Type: ";
+        // header_line += Suffix2Desc(_http_request.suffix);
+        // header_line += LINE_END;
+        // _http_reaponse._response_header.push_back(header_line);
         //内容
 
 
         return OK;
         }
 
-        return 404;
+        return NOT_FOUND;
+    }
+
+    void buildOkResponse()
+    {
+        std::string header_line = "Content-Length: ";
+        if(_http_request._cgi)
+            header_line += std::to_string(_http_reaponse._response_body.size());
+        else
+            header_line += std::to_string(_http_request._size);
+        header_line += LINE_END; 
+        _http_reaponse._response_header.push_back(header_line);
+
+        header_line = "Content-Type: ";
+        header_line += Suffix2Desc(_http_request.suffix);
+        header_line += LINE_END;
+        _http_reaponse._response_header.push_back(header_line);
+    }
+
+    void handlerError(const std::string& page)
+    {
+        _http_request._cgi = false;
+        _http_reaponse._fd = open(page.c_str(), O_RDONLY);
+        if(_http_reaponse._fd > 0)
+        {
+            struct stat st;
+            stat(page.c_str(), &st);
+            _http_request._size = st.st_size;
+            std::string line = "Content-Type: text/html";
+            line += LINE_END;
+            _http_reaponse._response_header.push_back(line);
+
+            line = "Content-Length ";
+            line += std::to_string(st.st_size);
+            line += LINE_END;
+            _http_reaponse._response_header.push_back(line);
+        }
+    }
+
+    void buildHttpResponseHelper()
+    {
+        auto& code = _http_reaponse._status_code;
+        //构建状态行
+        auto& status_line = _http_reaponse._status_line;
+        status_line = HTTP_VERSION;
+        status_line += " ";
+        status_line += std::to_string(code);
+        status_line += " ";
+        status_line += Code2Desc(code);
+        status_line += LINE_END;
+
+        std::string root_path = WEB_ROOT;
+        root_path += "/";
+        //构建响应正文、报头
+        switch(code)
+        {
+            case OK:
+                buildOkResponse();
+                break;
+            case BAD_REQUEST:
+                root_path += PAGE_400;
+                handlerError(root_path);
+                break;
+            case NOT_FOUND:
+                root_path += PAGE_404;
+                handlerError(root_path);
+                break;
+            case SERVER_ERROR:
+                root_path += PAGE_500;
+                handlerError(root_path);
+                break;
+            default:
+                break;
+        }
     }
 public:
     EndPoint(int sock)
@@ -340,7 +418,7 @@ public:
         if(_http_request._method != "GET" && _http_request._method != "POST")
         {
             logMessage(WARNING, "method is not right");
-            code = NOT_FOUND;
+            code = BAD_REQUEST;
             goto END;
         }
         if(_http_request._method == "GET")
@@ -385,7 +463,7 @@ public:
                 //可执行
                 _http_request._cgi = true;
             }
-            size = st.st_size;
+            _http_request._size = st.st_size;
         }
         else
         {
@@ -412,12 +490,10 @@ public:
         }
         else
         {
-            code = processNonCgi(size);
+            code = processNonCgi();
         }
-    END:
-        if(code != OK)
-        {}
-        return;
+END:
+        buildHttpResponseHelper();
     }
 
     void sendHttpResponse()
@@ -428,8 +504,21 @@ public:
             send(_sock, iter.c_str(), iter.size(), 0);
         }
         send(_sock, _http_reaponse._blank.c_str(), _http_reaponse._blank.size(), 0);
-        sendfile(_sock, _http_reaponse._fd, nullptr, _http_reaponse._size);
+        if(_http_request._cgi)
+        {   auto& response_body = _http_reaponse._response_body;
+            const char* start = response_body.c_str();
+            size_t total = 0;
+            size_t size = 0;
+            while(total < response_body.size() && (size = send(_sock, start + total, response_body.size() - total, 0)) > 0)
+            {
+                total += size;
+            }
+        }
+        else
+        {
+        sendfile(_sock, _http_reaponse._fd, nullptr, _http_request._size);
         close(_http_reaponse._fd);
+        }
     }
 
     ~EndPoint()
