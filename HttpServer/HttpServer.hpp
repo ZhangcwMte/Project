@@ -1,7 +1,10 @@
 #pragma once
 
+#include <signal.h>
+
 #include"TcpServer.hpp"
-#include"Protocol.hpp"
+#include"Task.hpp"
+#include"ThreadPool.hpp"
 
 const uint16_t PORT = 8081;
 
@@ -9,25 +12,25 @@ class HttpServer
 {
 public:
     HttpServer(uint16_t port = PORT)
-        :_port(port)
+        :_port(port), _stop(false)
     {}
 
     void initServer()
     {
-        _tcp_server = TcpServer::getInstance(_port);
+        // 忽略SIGPIPE， 否则服务器可能崩溃
+        signal(SIGPIPE, SIG_IGN);
+        //_tcp_server = TcpServer::getInstance(_port);
     }
 
     void loop()
     {
-        int listen_sock = -_tcp_server->getSock();
         while(!_stop)
         {
             std::string client_ip;
             uint16_t client_port;
-            int sock = Sock::Accept(listen_sock, &client_ip, &client_port);
-            int* _sock = new int(sock);
-            pthread_t tid;
-            pthread_create(&tid, nullptr, Entrance::handlerRequest, _sock);
+            int sock = Sock::Accept(TcpServer::getInstance(_port)->getSock(), &client_ip, &client_port);
+            Task task(sock);
+            ThreadPool::getInstance()->pushTask(task);
         }
         
     }
@@ -36,6 +39,5 @@ public:
     {}
 private:
     uint16_t _port;
-    TcpServer* _tcp_server;
     bool _stop;
 };

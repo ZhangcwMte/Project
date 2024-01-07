@@ -12,6 +12,7 @@
 #include <algorithm>
 
 #include"Util.hpp"
+#include"Log.hpp"
 
 const std::string SEP = ": ";
 const std::string WEB_ROOT = "wwwroot";
@@ -98,20 +99,33 @@ struct HttpResponse
 class EndPoint
 {
 private:
-    void recvHttpRequestLine()
+    bool recvHttpRequestLine()
     {
         auto& line = _http_request._request_line;
-        Util::readLine(_sock, line);
-        line.resize(line.size() - 1);
+
+        if(Util::readLine(_sock, line) > 0)
+        {
+            line.resize(line.size() - 1);
+            logMessage(NORMAL, _http_request._request_line.c_str());
+        }
+        else
+        {
+            _stop = true;
+        }
+        return _stop;
     }
 
-    void recvHttpRequestHeader()
+    bool recvHttpRequestHeader()
     {
         std::string line;
         while(1)
         {
             line.clear();
-            Util::readLine(_sock, line);
+            if(Util::readLine(_sock, line) <= 0)
+            {
+                _stop = true;
+                break;
+            }
             if(line == "\n")
             {
                 _http_request._blank = line;
@@ -120,6 +134,7 @@ private:
             line.resize(line.size() - 1);
             _http_request._request_header.push_back(line);
         }
+        return _stop;
     }
 
     bool isNeedRecvHttpRequestBody()
@@ -138,7 +153,7 @@ private:
         return false;
     }
 
-    void recvHttpRequestBody()
+    bool recvHttpRequestBody()
     {
         if(isNeedRecvHttpRequestBody())
         {
@@ -149,9 +164,13 @@ private:
                 if(s > 0)
                     _http_request._request_body += ch;
                 else
+                {
+                    _stop = true;
                     break;
+                }
             }
         }
+        return _stop;
     }
 
     void parseHttpRequestLine()
@@ -391,16 +410,18 @@ private:
     }
 public:
     EndPoint(int sock)
-        :_sock(sock)
+        :_sock(sock), _stop(false)
     {}
 
     void recvHttpRequest()
     {
-        recvHttpRequestLine();
-        recvHttpRequestHeader();
-        parseHttpRequestLine();
-        parseHttpRequestHeader();
-        recvHttpRequestBody();
+        if(recvHttpRequestLine() || recvHttpRequestHeader());
+        else
+        {
+            parseHttpRequestLine();
+            parseHttpRequestHeader();
+            recvHttpRequestBody();
+        }
     }
 
     // void parseHttpRequest()
@@ -521,6 +542,11 @@ END:
         }
     }
 
+    bool isStop()
+    {
+        return _stop;
+    }
+
     ~EndPoint()
     {
         close(_sock);
@@ -529,25 +555,39 @@ private:
     int _sock;
     HttpRequest _http_request;
     HttpResponse _http_reaponse;
+    bool _stop;
 };
 
-class Entrance
+class CallBack
 {
 public:
-    static void* handlerRequest(void* _sock)
-    {
-        int sock = *(int*)_sock;
-        delete (int*)_sock;
+    CallBack()
+    {}
 
+    void operator()(int sock)
+    {
+        handlerRequest(sock);
+    }
+
+    void handlerRequest(int sock)
+    {
         //std::cout << "get a new link ..." << std::endl;
 
         EndPoint* ep = new EndPoint(sock);
         ep->recvHttpRequest();
-        //ep->parseHttpRequest();
-        ep->buildHttpResponse();
-        ep->sendHttpResponse();
+        if(!ep->isStop())
+        {
+            logMessage(NORMAL, "Eecv No Error, Begin Build And Send");
+            ep->buildHttpResponse();
+            ep->sendHttpResponse();
+        }
+        else
+        {
+            logMessage(WARNING, "Eecv Error, Stop Build And Send");
+        }
         delete ep;
-
-        return nullptr;
     }
+
+    ~CallBack()
+    {}
 };
