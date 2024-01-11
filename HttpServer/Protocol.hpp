@@ -81,7 +81,7 @@ struct HttpRequest
     std::string suffix;
     std::string _query_string;
     size_t _size;
-    bool _cgi;
+    bool _cgi = false;
 };
 
 struct HttpResponse
@@ -133,6 +133,7 @@ private:
             }
             line.resize(line.size() - 1);
             _http_request._request_header.push_back(line);
+            logMessage(NORMAL, line.c_str());
         }
         return _stop;
     }
@@ -146,6 +147,7 @@ private:
             auto pos = header_kv.find("Content-Length");
             if(pos != header_kv.end())
             {
+                logMessage(NORMAL, "Post Method, Content-Length: ", pos->second.c_str());
                 _http_request._content_length = atoi(pos->second.c_str());
                 return true;
             }
@@ -195,6 +197,8 @@ private:
 
     int processCgi()
     {
+        logMessage(NORMAL, "process cgi mthod!");
+
         int code = OK;
         auto& method = _http_request._method;
         auto& query_string = _http_request._query_string;
@@ -238,12 +242,14 @@ private:
                 query_string_env = "QUERY_STRING=";
                 query_string_env += query_string;
                 putenv((char*)query_string_env.c_str());
+                logMessage(NORMAL, "Get Method, Add Query_String Env");
             }
             else if(method == "POST")
             {
                 content_length_env = "CONTENT_LENGTH=";
                 content_length_env += std::to_string(content_length);
                 putenv((char*)content_length_env.c_str());
+                logMessage(NORMAL, "Post Method, Add Content_Length Env");
             }
             else
             {
@@ -278,7 +284,7 @@ private:
             }
 
             char ch = 0;
-            while(read(input[0], &ch, 1))
+            while(read(input[0], &ch, 1) > 0)
             {
                 response_body.push_back(ch);
             }
@@ -328,7 +334,7 @@ private:
         // header_line += LINE_END;
         // _http_reaponse._response_header.push_back(header_line);
         //内容
-
+        logMessage(NORMAL, _http_request._path.c_str(), "open success!");   
 
         return OK;
         }
@@ -526,7 +532,8 @@ END:
         }
         send(_sock, _http_reaponse._blank.c_str(), _http_reaponse._blank.size(), 0);
         if(_http_request._cgi)
-        {   auto& response_body = _http_reaponse._response_body;
+        {   
+            auto& response_body = _http_reaponse._response_body;
             const char* start = response_body.c_str();
             size_t total = 0;
             size_t size = 0;
@@ -571,7 +578,7 @@ public:
 
     void handlerRequest(int sock)
     {
-        //std::cout << "get a new link ..." << std::endl;
+        logMessage(NORMAL, "Hander Request Begin");
 
         EndPoint* ep = new EndPoint(sock);
         ep->recvHttpRequest();

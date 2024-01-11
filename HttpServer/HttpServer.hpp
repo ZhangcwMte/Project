@@ -26,6 +26,7 @@ public:
     {
         while(!_stop)
         {
+            logMessage(NORMAL, "Loop begin");
             std::string client_ip;
             uint16_t client_port;
             int sock = Sock::Accept(TcpServer::getInstance(_port)->getSock(), &client_ip, &client_port);

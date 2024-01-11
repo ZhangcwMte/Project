@@ -79,6 +79,7 @@ public:
             }
             tp->popTask(t);
             tp->unLock();
+            t.processOn();
         }
     }
 

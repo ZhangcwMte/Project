@@ -71,6 +71,8 @@ public:
         }
         if(port) *port = ntohs(src.sin_port);
         if(ip) *ip = inet_ntoa(src.sin_addr);
+
+        logMessage(NORMAL, "Get a new link");
         return servicesock;
     }
     static bool Connect(int sock, const std::string &server_ip, const uint16_t &server_port)

@@ -21,7 +21,7 @@ const char *gLevelMap[] = {
     "FATAL"
 };
 
-#define LOGFILE "./selectServer.log"
+#define LOGFILE "./HttpServer.log"
 
 void logMessage(int level, const char *format, ...)
 {
