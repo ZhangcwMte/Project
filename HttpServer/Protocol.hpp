@@ -36,8 +36,14 @@ static std::string Code2Desc(int code)
         case 200:
             desc = "OK";
             break;
+        case 400:
+            desc = "Bad Request";
+            break;
         case 404:
             desc = "Not Found";
+            break;
+        case 500:
+            desc = "Server Error";
             break;
         default:
             break;
